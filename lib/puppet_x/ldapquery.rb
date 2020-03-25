@@ -44,20 +44,36 @@ module PuppetX
       host = Puppet[:ldapserver]
       port = Puppet[:ldapport]
 
-      if Puppet[:ldapuser] && Puppet[:ldappassword]
-        user     = Puppet[:ldapuser]
-        password = Puppet[:ldappassword]
+      if port == 389 and Puppet[:ldapssl]
+          port = 636
       end
-
-      tls = Puppet[:ldaptls]
-      ca_file = "#{Puppet[:confdir]}/ldap_ca.pem"
-
-      # TODO: if not exists ldap_ca.pem fail
 
       conf = {
         host: host,
         port: port
       }
+
+      if Puppet[:ldapuser] && Puppet[:ldappassword]
+        user     = Puppet[:ldapuser]
+        password = Puppet[:ldappassword]
+      end
+
+      tls = true
+      
+      if Puppet[:ldaptls]
+        tls = true
+        conf[:encryption] = {
+          method: :start_tls,
+        }
+      elsif Puppet[:ldapssl]
+        tls = true
+        conf[:encryption] = {
+          method: :simple_tls,
+        }
+      else
+        tls = false
+      end
+      
 
       if (user != '') && (password != '')
         conf[:auth] = {
@@ -67,11 +83,20 @@ module PuppetX
         }
       end
 
+
+      ca_file = Puppet[:cafile]
+      
+
       if tls
+        em = conf[:encryption]
+        Puppet.info("[ldapquery] tls enabled: #{em} port: #{port}.")
         conf[:encryption] = {
           method: :simple_tls,
-          tls_options: { ca_file: ca_file }
         }
+        if ca_file
+            Puppet.debug('Using custom certificate authority in "' + ca_file +'".')
+            conf[:encryption][:tls_options] = { ca_file: ca_file }
+        end
       end
 
       conf
